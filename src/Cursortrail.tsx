@@ -10,6 +10,7 @@ function Cursortrail() {
   useEffect(() => {
     const history = Array.from({ length: DOT_COUNT }, () => ({ x: 0, y: 0 }));
     const positions = Array.from({ length: DOT_COUNT }, () => ({ x: 0, y: 0 }));
+    let animationFrameId: number;
 
     const handleMouseMove = (e: MouseEvent) => {
       mouseX.current = e.clientX;
@@ -19,7 +20,7 @@ function Cursortrail() {
     document.addEventListener("mousemove", handleMouseMove);
 
     const animate = () => {
-      // store latest mouse position
+      
       history.unshift({ x: mouseX.current, y: mouseY.current });
       history.pop();
 
@@ -29,7 +30,7 @@ function Cursortrail() {
         const target = history[index];
         const current = positions[index];
 
-        // smoothing (lower = slower)
+        
         current.x += (target.x - current.x) * 0.18;
         current.y += (target.y - current.y) * 0.18;
 
@@ -37,13 +38,14 @@ function Cursortrail() {
         dot.style.top = `${current.y}px`;
       });
 
-      requestAnimationFrame(animate);
+      animationFrameId = requestAnimationFrame(animate);
     };
 
     animate();
 
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
+      cancelAnimationFrame(animationFrameId);
     };
   }, []);
 

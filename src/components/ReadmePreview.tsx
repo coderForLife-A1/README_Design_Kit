@@ -3,8 +3,8 @@ import {
   type ReadmeExportPreset,
 } from '@/config/readmeExportPresets';
 import { generateMarkdown as generateMarkdownUtil } from '@/utils/markdownGenerator';
-import { useRef, useState } from 'react';
-import { Download, Copy, Share2 } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
+import { Download, Copy, Share2, Sun, Moon, Eclipse, Undo, Redo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ElementRenderer } from '@/components/ElementRenderer';
 import type { ElementType } from '@/types/elements';
@@ -13,25 +13,35 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { createGist } from '@/services/githubService';
 import { toast } from 'sonner';
+import { useHistory } from '@/contexts/HistoryContext';
 
 interface ReadmePreviewProps {
-  elements: ElementType[];
+  elements?: ElementType[];
   preset: ReadmeExportPreset;
   onPresetChange: (preset: ReadmeExportPreset) => void;
 }
 
 export function ReadmePreview({
-  elements,
+  elements: propsElements,
   preset,
   onPresetChange,
 }: ReadmePreviewProps) {
+  const { state: contextElements, undo, redo, canUndo, canRedo } = useHistory();
+  const elements = propsElements || contextElements;
   const [copied, setCopied] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
-  const { theme } = useTheme();
+  const { theme: globalTheme } = useTheme();
   const isMobile = useIsMobile();
-  const isDark =
-    theme === 'dark' ||
-    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  // Local preview theme state
+  const [previewTheme, setPreviewTheme] = useState<'github-light' | 'github-dark' | 'github-dimmed'>('github-dark');
+
+  // Sync preview theme with global theme initially
+  useEffect(() => {
+    const isGlobalDark = globalTheme === 'dark' ||
+      (globalTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    setPreviewTheme(isGlobalDark ? 'github-dark' : 'github-light');
+  }, [globalTheme]);
 
   const filteredElements =
     preset === 'default'
@@ -41,7 +51,7 @@ export function ReadmePreview({
       );
 
   const generateMarkdown = (): string =>
-    generateMarkdownUtil(filteredElements, theme);
+    generateMarkdownUtil(filteredElements, globalTheme);
 
   const copyToClipboard = async () => {
     const markdown = generateMarkdown();
@@ -102,8 +112,39 @@ export function ReadmePreview({
     <div className="h-full flex flex-col">
       <div className={`border-b border-border p-3 md:p-4 bg-muted/50 ${isMobile ? 'mt-6' : ''}`}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <h3 className="font-medium text-base md:text-lg">README Preview</h3>
+
+            {/* Theme Switcher */}
+            <div className="flex items-center bg-background/50 border border-border p-1 rounded-full shadow-inner">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-7 w-7 rounded-full transition-all duration-300 ${previewTheme === 'github-light' ? 'bg-background shadow-sm text-yellow-500 scale-110' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setPreviewTheme('github-light')}
+                title="GitHub Light"
+              >
+                <Sun className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-7 w-7 rounded-full transition-all duration-300 ${previewTheme === 'github-dimmed' ? 'bg-background shadow-sm text-blue-400 scale-110' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setPreviewTheme('github-dimmed')}
+                title="GitHub Dark Dimmed"
+              >
+                <Eclipse className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-7 w-7 rounded-full transition-all duration-300 ${previewTheme === 'github-dark' ? 'bg-background shadow-sm text-purple-500 scale-110' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => setPreviewTheme('github-dark')}
+                title="GitHub Dark"
+              >
+                <Moon className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
@@ -161,19 +202,44 @@ export function ReadmePreview({
       </div>
 
       <Tabs defaultValue="preview" className="flex-1 flex flex-col">
-        <TabsList className="mx-4 mt-4 w-fit">
-          <TabsTrigger value="preview">Visual Preview</TabsTrigger>
-          <TabsTrigger value="markdown">Markdown Code</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center gap-4 mx-4 mt-4">
+          <TabsList className="w-fit">
+            <TabsTrigger value="preview">Visual Preview</TabsTrigger>
+            <TabsTrigger value="markdown">Markdown Code</TabsTrigger>
+          </TabsList>
+
+          {undo && redo && (
+            <div className="flex items-center gap-1 bg-background/50 p-1 rounded-lg border border-border shadow-sm">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={undo}
+                disabled={!canUndo}
+                className={`h-8 w-8 p-0 transition-all duration-200 ${canUndo ? 'text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-muted-foreground'}`}
+                title="Undo (Ctrl+Z)"
+              >
+                <Undo className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={redo}
+                disabled={!canRedo}
+                className={`h-8 w-8 p-0 transition-all duration-200 ${canRedo ? 'text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10' : 'text-muted-foreground'}`}
+                title="Redo (Ctrl+Shift+Z)"
+              >
+                <Redo className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
 
         <TabsContent value="preview" className="flex-1 overflow-auto p-4">
           <div
             ref={previewRef}
-            className="p-10 rounded-2xl shadow-xl max-w-4xl mx-auto border"
+            className={`p-10 rounded-2xl shadow-xl max-w-4xl mx-auto border transition-all duration-500 ${previewTheme}`}
             style={{
-              background: isDark ? '#18181b' : '#ffffff',
               fontFamily: 'Inter, sans-serif',
-              color: isDark ? '#f3f4f6' : '#1e293b',
               lineHeight: '1.75',
             }}
           >
